@@ -25,16 +25,29 @@ export default function App(){
   const claims=await getIdTokenClaims();
   const auth0Sub=claims?.sub;
   if(!auth0Sub)return setNotice('Could not get Auth0 user ID from the ID token. Please log in again.');
+
   const {data:target}=await supabase.from('profiles').select('auth0_sub,display_name,user_code,public_key').eq('user_code',code).maybeSingle();
   if(!target)return setNotice('No user found with that ID.');
   if(target.auth0_sub===auth0Sub)return setNotice('You cannot add yourself.');
-  const identity=await getOrCreateIdentity(),chatKey=await createChatKey(),raw=await exportKey(chatKey);
-  const ownWrapped=await wrapChatKey(raw,identity.privateKey,identity.publicJwk),targetWrapped=await wrapChatKey(raw,identity.privateKey,target.public_key);
-  const {data:chat,error}=await supabase.from('chats').insert({created_by:auth0Sub,password_protected:false,save_history:true}).select('id').single();
-  if(error||!chat)return setNotice(error?.message??'Could not create chat.');
-  const {error:memberError}=await supabase.from('chat_members').insert([{chat_id:chat.id,auth0_sub:auth0Sub,display_name:displayName,user_code:userCode,hidden:false,encrypted_key:ownWrapped,key_sender_public:identity.publicJwk},{chat_id:chat.id,auth0_sub:target.auth0_sub,display_name:target.display_name,user_code:code,hidden:false,encrypted_key:targetWrapped,key_sender_public:identity.publicJwk}]);
-  if(memberError)return setNotice(memberError.message);
-  setSelected({id:chat.id,other_user_id:code,other_name:target.display_name,hidden:false,password_protected:false,save_history:true,key:chatKey});setShowAdd(false);setTargetId('');setNotice('');await loadChats();
+
+  try{
+   const identity=await getOrCreateIdentity(),chatKey=await createChatKey(),raw=await exportKey(chatKey);
+   const ownWrapped=await wrapChatKey(raw,identity.privateKey,identity.publicJwk),targetWrapped=await wrapChatKey(raw,identity.privateKey,target.public_key);
+   const {data:chat,error}=await supabase.rpc('create_chat_with_members',{
+    target_auth0_sub:target.auth0_sub,
+    target_display_name:target.display_name,
+    target_user_code:code,
+    target_encrypted_key:targetWrapped,
+    target_key_sender_public:identity.publicJwk,
+    own_display_name:displayName,
+    own_user_code:userCode,
+    own_encrypted_key:ownWrapped,
+    own_key_sender_public:identity.publicJwk,
+   });
+   if(error||!chat)return setNotice(error?.message??'Could not create chat.');
+   setSelected({id:chat,other_user_id:code,other_name:target.display_name,hidden:false,password_protected:false,save_history:true,key:chatKey});
+   setShowAdd(false);setTargetId('');setNotice('');await loadChats();
+  }catch(error){setNotice(error instanceof Error?error.message:'Could not create chat.');}
  }
  async function openChat(chat:Chat){if(!supabase||!user?.sub)return;const identity=await getOrCreateIdentity();const {data}=await supabase.from('chat_members').select('encrypted_key,key_sender_public').eq('chat_id',chat.id).eq('auth0_sub',user.sub).single();if(!data)return;try{const raw=await unwrapChatKey(data.encrypted_key,identity.privateKey,data.key_sender_public),key=await importKey(raw);setSelected({...chat,key});if(chat.save_history){const {data:rows}=await supabase.from('messages').select('id,sender_id,ciphertext,created_at').eq('chat_id',chat.id).order('created_at',{ascending:true});setMessages(rows??[]);}else setMessages([]);}catch{setNotice('This chat cannot be unlocked on this device.');}}
  async function sendMessage(){if(!draft.trim()||!selected?.key||!supabase||!user?.sub)return;const ciphertext=await encryptText(draft.trim(),selected.key);await supabase.from('messages').insert({chat_id:selected.id,sender_id:user.sub,ciphertext});setDraft('');if(selected.save_history){const {data}=await supabase.from('messages').select('id,sender_id,ciphertext,created_at').eq('chat_id',selected.id).order('created_at',{ascending:true});setMessages(data??[]);}}
