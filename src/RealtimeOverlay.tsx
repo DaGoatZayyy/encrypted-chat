@@ -13,6 +13,14 @@ type ChatMeta = {
 type PresenceEntry = { user_id?: string };
 type PresenceState = Record<string, Set<string>>;
 
+type ChatMemberRow = {
+  chat_id: string;
+  auth0_sub: string;
+  display_name: string;
+  user_code: string;
+  chats?: { name?: string | null } | Array<{ name?: string | null }> | null;
+};
+
 const USER_CODE_RE = /^[0-9A-Za-z]{12}$/;
 const LAST_SEEN_INTERVAL = 30_000;
 const TYPING_TIMEOUT = 1_500;
@@ -44,20 +52,26 @@ export default function RealtimeOverlay() {
       if (cancelled || !data) return;
 
       const grouped = new Map<string, ChatMeta>();
-      for (const row of data as any[]) {
+      for (const row of data as unknown as ChatMemberRow[]) {
         const chat = Array.isArray(row.chats) ? row.chats[0] : row.chats;
-        const current = grouped.get(row.chat_id) ?? {
-          chatId: row.chat_id,
-          memberIds: [],
-          memberNames: {},
-          memberCodes: {},
-          name: chat?.name ?? '',
-        };
-        if (!current.memberIds.includes(row.auth0_sub)) current.memberIds.push(row.auth0_sub);
+        let current = grouped.get(row.chat_id);
+        if (!current) {
+          current = {
+            chatId: row.chat_id,
+            memberIds: [],
+            memberNames: {},
+            memberCodes: {},
+            name: chat?.name ?? '',
+          };
+          grouped.set(row.chat_id, current);
+        }
+
+        if (!current.memberIds.includes(row.auth0_sub)) {
+          current.memberIds.push(row.auth0_sub);
+        }
         current.memberNames[row.auth0_sub] = row.display_name;
         current.memberCodes[row.auth0_sub] = row.user_code;
         current.name = chat?.name ?? current.name;
-        grouped.set(row.chat_id, current);
       }
 
       const rows = [...grouped.values()];
@@ -66,7 +80,7 @@ export default function RealtimeOverlay() {
       if (ids.length) {
         const { data: profiles } = await supabase.from('profiles').select('auth0_sub,last_seen_at').in('auth0_sub', ids);
         if (!cancelled && profiles) {
-          setLastSeen(Object.fromEntries(profiles.map((profile: any) => [profile.auth0_sub, profile.last_seen_at])));
+          setLastSeen(Object.fromEntries(profiles.map((profile: { auth0_sub: string; last_seen_at: string | null }) => [profile.auth0_sub, profile.last_seen_at ?? ''])));
         }
       }
     };
@@ -180,7 +194,7 @@ export default function RealtimeOverlay() {
       const title = head.querySelector('strong')?.textContent?.trim() ?? '';
       const subtitle = head.querySelector('small')?.textContent?.trim() ?? '';
       if (USER_CODE_RE.test(subtitle)) {
-        return chats.find((chat) => chat.memberCodes && Object.values(chat.memberCodes).includes(subtitle))?.chatId ?? null;
+        return chats.find((chat) => Object.values(chat.memberCodes).includes(subtitle))?.chatId ?? null;
       }
       const groupCandidates = chats.filter((chat) => chat.name === title);
       return groupCandidates[0]?.chatId ?? null;
@@ -194,9 +208,7 @@ export default function RealtimeOverlay() {
       const target = event.target as HTMLInputElement | null;
       if (!target || !target.closest('.composer') || target.type === 'file') return;
       emitTyping(Boolean(target.value));
-      if (target.value) {
-        window.setTimeout(() => emitTyping(false), TYPING_TIMEOUT);
-      }
+      if (target.value) window.setTimeout(() => emitTyping(false), TYPING_TIMEOUT);
     };
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
