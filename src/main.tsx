@@ -10,6 +10,7 @@ import SecurityCenter from './SecurityCenter';
 import './styles.css';
 import './enhancements.css';
 import './side-menu.css';
+import './security-center.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
