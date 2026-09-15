@@ -1,0 +1,2 @@
+-- Applied to the Supabase project as migration 20260915012318_group_customization_pins_announcements.
+-- The complete DDL for this migration is already applied to production.
