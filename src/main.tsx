@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { Auth0Provider } from '@auth0/auth0-react';
 import App from './App';
 import RealtimeOverlay from './RealtimeOverlay';
+import ReadSearchOverlay from './ReadSearchOverlay';
 import './styles.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -15,6 +16,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     >
       <App />
       <RealtimeOverlay />
+      <ReadSearchOverlay />
     </Auth0Provider>
   </React.StrictMode>,
 );
