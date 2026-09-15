@@ -16,7 +16,7 @@ export default function Enhancements(){
  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('encrypted-chat:theme',theme)},[theme]);
  useEffect(()=>{
   if(!isAuthenticated)return;
-  let disposed=false; let timer:number|undefined; let observer:MutationObserver|undefined; let channel:any;
+  let disposed=false; let timer:number|undefined; let channel:any;
   const sync=async()=>{
    if(!supabase||disposed)return;
    const claims=await getIdTokenClaims(); const ownSub=claims?.sub;
@@ -30,11 +30,11 @@ export default function Enhancements(){
     buttons.forEach(el=>{const m=byText(el);if(!m)return;el.dataset.enhancedChatId=m.id;el.style.position='relative';let tools=el.querySelector<HTMLElement>('.chat-ui-tools');if(!tools){tools=document.createElement('span');tools.className='chat-ui-tools';tools.onclick=e=>e.stopPropagation();el.appendChild(tools)}const pinned=Boolean(state.pinned?.[m.id]),muted=Boolean(state.muted?.[m.id]);tools.innerHTML='';const p=document.createElement('button');p.title=pinned?'Unpin':'Pin';p.textContent=pinned?'Unpin':'Pin';p.onclick=e=>{e.stopPropagation();const s=load();s.pinned??={};s.pinned[m.id]=!pinned;save(s);apply()};const u=document.createElement('button');u.title=muted?'Unmute':'Mute';u.textContent=muted?'Unmute':'Mute';u.onclick=e=>{e.stopPropagation();const s=load();s.muted??={};s.muted[m.id]=!muted;save(s);apply()};tools.append(p,u);el.querySelector('.chat-unread')?.remove();if(m.unread&&!muted){const badge=document.createElement('b');badge.className='chat-unread';badge.textContent=String(m.unread);el.appendChild(badge)}if(pinned)el.classList.add('ui-pinned');else el.classList.remove('ui-pinned');});
     const ordered=[...buttons].sort((a,b)=>Number(b.classList.contains('ui-pinned'))-Number(a.classList.contains('ui-pinned')));ordered.forEach(x=>list.appendChild(x));
    };
-   apply();timer=window.setInterval(apply,1200);observer=new MutationObserver(apply);observer.observe(document.body,{childList:true,subtree:true});
+   apply();timer=window.setInterval(apply,1200);
    channel=supabase.channel('ui-message-activity').on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},()=>void sync()).subscribe();
   };
   void sync();
-  return()=>{disposed=true;if(timer)clearInterval(timer);observer?.disconnect();if(channel)void supabase?.removeChannel(channel)};
+  return()=>{disposed=true;if(timer)clearInterval(timer);if(channel)void supabase?.removeChannel(channel)};
  },[isAuthenticated,supabase,getIdTokenClaims]);
  useEffect(()=>{const onClick=(e:MouseEvent)=>{const row=(e.target as HTMLElement).closest<HTMLElement>('.chat-row');if(!row)return;const id=row.dataset.enhancedChatId;if(!id)return;const s=load();s.read??={};s.read[id]=Date.now();save(s);row.querySelector('.chat-unread')?.remove()};document.addEventListener('click',onClick);return()=>document.removeEventListener('click',onClick)},[]);
  useEffect(()=>{const onOver=(e:DragEvent)=>{if(e.dataTransfer?.types.includes('Files')&&document.querySelector('.composer')){e.preventDefault();document.body.classList.add('file-dragging')}};const onLeave=()=>document.body.classList.remove('file-dragging');const onDrop=(e:DragEvent)=>{document.body.classList.remove('file-dragging');if(!e.dataTransfer?.files.length||!document.querySelector('.composer'))return;e.preventDefault();setPreview([...e.dataTransfer.files])};window.addEventListener('dragover',onOver);window.addEventListener('dragleave',onLeave);window.addEventListener('drop',onDrop);return()=>{window.removeEventListener('dragover',onOver);window.removeEventListener('dragleave',onLeave);window.removeEventListener('drop',onDrop)}},[]);
