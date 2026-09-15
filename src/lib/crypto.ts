@@ -54,8 +54,9 @@ export async function decryptBytes(payload: ArrayBuffer, key: CryptoKey) {
 
 export async function derivePasswordKey(password: string, salt: Uint8Array) {
   const material = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']);
+  const saltBuffer = new Uint8Array(salt).buffer as ArrayBuffer;
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: saltBuffer, iterations: 310000, hash: 'SHA-256' },
     material,
     { name: 'AES-GCM', length: 256 },
     false,
