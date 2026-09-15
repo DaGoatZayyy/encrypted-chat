@@ -21,6 +21,8 @@ with check (
   and public.is_chat_member(chat_id, auth.jwt()->>'sub')
 );
 
+drop policy if exists "chat members can delete messages" on public.messages;
+
 comment on column public.messages.reply_to_message_id is 'References another message in the same chat for client-side quoted replies.';
 comment on column public.messages.edited_at is 'Set when the sender edits the encrypted message.';
 comment on column public.messages.deleted_at is 'Set when the sender deletes the message for everyone; ciphertext is cleared client-side.';
