@@ -17,26 +17,38 @@ export default function App(){
  const supabase=useMemo(()=>isAuthenticated?makeSupabase(async()=> (await getIdTokenClaims())?.__raw):null,[getIdTokenClaims,isAuthenticated]);
  useEffect(()=>{if(supabase&&user?.sub){void loadProfile();void loadChats();}},[supabase,user?.sub]);
 
- // Keep the chat list synchronized across every signed-in device/session.
+ // Realtime is used when available, but polling below guarantees updates even when a browser/WebSocket is unreliable.
  useEffect(()=>{
   if(!supabase||!user?.sub)return;
   const channel=supabase.channel(`chat-members-${user.sub}`)
    .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_members',filter:`auth0_sub=eq.${user.sub}`},()=>{void loadChats()})
    .subscribe();
-  return()=>{void supabase.removeChannel(channel);};
+  const timer=window.setInterval(()=>{void loadChats();},1000);
+  return()=>{window.clearInterval(timer);void supabase.removeChannel(channel);};
  },[supabase,user?.sub]);
 
- // Subscribe to the currently open conversation so incoming messages appear immediately.
+ // Subscribe to the open conversation and also poll it every second as a reliable fallback.
  useEffect(()=>{
   if(!supabase||!user?.sub||!selected?.id)return;
+  const refreshMessages=async()=>{
+   if(!selected.save_history)return;
+   const {data}=await supabase.from('messages').select('id,sender_id,ciphertext,created_at').eq('chat_id',selected.id).order('created_at',{ascending:true});
+   if(data)setMessages(current=>{
+    const byId=new Map(current.map(m=>[m.id,m]));
+    for(const message of data)byId.set(message.id,message);
+    return Array.from(byId.values()).sort((a,b)=>a.created_at.localeCompare(b.created_at));
+   });
+  };
+  void refreshMessages();
   const channel=supabase.channel(`messages-${selected.id}`)
    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`chat_id=eq.${selected.id}`},payload=>{
     const incoming=payload.new as Message;
-    setMessages(current=>current.some(m=>m.id===incoming.id)?current:[...current,incoming]);
+    setMessages(current=>current.some(m=>m.id===incoming.id)?current:[...current,incoming].sort((a,b)=>a.created_at.localeCompare(b.created_at)));
    })
    .subscribe();
-  return()=>{void supabase.removeChannel(channel);};
- },[supabase,user?.sub,selected?.id]);
+  const timer=window.setInterval(()=>{void refreshMessages();},1000);
+  return()=>{window.clearInterval(timer);void supabase.removeChannel(channel);};
+ },[supabase,user?.sub,selected?.id,selected?.save_history]);
 
  async function loadProfile(){if(!supabase||!user?.sub)return;const {data}=await supabase.from('profiles').select('display_name,user_code').eq('auth0_sub',user.sub).maybeSingle();if(!data){const identity=await getOrCreateIdentity();const {data:created}=await supabase.from('profiles').insert({auth0_sub:user.sub,display_name:user.name??'User',user_code:randomUserId(),public_key:identity.publicJwk}).select('display_name,user_code').single();if(created){setDisplayName(created.display_name);setUserCode(created.user_code);}}else{setDisplayName(data.display_name);setUserCode(data.user_code);await getOrCreateIdentity();}}
  async function loadChats(){if(!supabase||!user?.sub)return;const {data}=await supabase.from('chat_members').select('chat_id,hidden,chats(id,password_protected,save_history,chat_members(auth0_sub,display_name,user_code))').eq('auth0_sub',user.sub);setChats((data??[]).flatMap((row:any)=>{const other=(row.chats?.chat_members??[]).find((m:any)=>m.auth0_sub!==user.sub);return other?[{id:row.chat_id,other_user_id:other.user_code,other_name:other.display_name,hidden:row.hidden,password_protected:row.chats.password_protected,save_history:row.chats.save_history}]:[]}));}
@@ -79,7 +91,7 @@ export default function App(){
   const ciphertext=await encryptText(text,selected.key);
   const {data,error}=await supabase.from('messages').insert({chat_id:selected.id,sender_id:user.sub,ciphertext}).select('id,sender_id,ciphertext,created_at').single();
   if(error){setDraft(text);setNotice(error.message);return;}
-  if(data)setMessages(current=>current.some(m=>m.id===data.id)?current:[...current,data]);
+  if(data)setMessages(current=>current.some(m=>m.id===data.id)?current:[...current,data].sort((a,b)=>a.created_at.localeCompare(b.created_at)));
  }
  async function saveProfile(){if(supabase&&user?.sub){await supabase.from('profiles').update({display_name:displayName}).eq('auth0_sub',user.sub);setNotice('Profile saved.');}}
  if(isLoading)return <div className="center">Loading secure session…</div>;
