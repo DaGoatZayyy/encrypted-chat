@@ -10,6 +10,7 @@ type ChatMeta = {
   name: string;
 };
 
+type PresenceEntry = { user_id?: string };
 type PresenceState = Record<string, Set<string>>;
 
 const USER_CODE_RE = /^[0-9A-Za-z]{12}$/;
@@ -80,7 +81,6 @@ export default function RealtimeOverlay() {
 
   useEffect(() => {
     if (!supabase || !user?.sub || chats.length === 0) return;
-    let cancelled = false;
     const channels: Record<string, any> = {};
 
     for (const chat of chats) {
@@ -89,7 +89,8 @@ export default function RealtimeOverlay() {
           config: { presence: { key: user.sub }, broadcast: { ack: false } },
         })
         .on('presence', { event: 'sync' }, () => {
-          const state = channel.presenceState() as Record<string, any[]>;
+          const rawState: unknown = channel.presenceState();
+          const state = rawState as Record<string, PresenceEntry[]>;
           const ids = new Set<string>();
           for (const entries of Object.values(state)) {
             for (const entry of entries) {
@@ -99,7 +100,7 @@ export default function RealtimeOverlay() {
           }
           setPresence((current) => ({ ...current, [chat.chatId]: ids }));
         })
-        .on('presence', { event: 'join' }, ({ key }: any) => {
+        .on('presence', { event: 'join' }, ({ key }: { key: string }) => {
           if (key === user.sub) return;
           setPresence((current) => {
             const ids = new Set(current[chat.chatId] ?? []);
@@ -107,14 +108,14 @@ export default function RealtimeOverlay() {
             return { ...current, [chat.chatId]: ids };
           });
         })
-        .on('presence', { event: 'leave' }, ({ key }: any) => {
+        .on('presence', { event: 'leave' }, ({ key }: { key: string }) => {
           setPresence((current) => {
             const ids = new Set(current[chat.chatId] ?? []);
             ids.delete(key);
             return { ...current, [chat.chatId]: ids };
           });
         })
-        .on('broadcast', { event: 'typing' }, ({ payload }: any) => {
+        .on('broadcast', { event: 'typing' }, ({ payload }: { payload: { user_id?: string; typing?: boolean } }) => {
           const id = String(payload?.user_id ?? '');
           if (!id || id === user.sub) return;
           setTyping((current) => {
@@ -145,10 +146,8 @@ export default function RealtimeOverlay() {
     channelsRef.current = channels;
 
     return () => {
-      cancelled = true;
       for (const channel of Object.values(channels)) void supabase.removeChannel(channel);
       channelsRef.current = {};
-      if (!cancelled) setPresence({});
     };
   }, [chats, supabase, user?.sub]);
 
