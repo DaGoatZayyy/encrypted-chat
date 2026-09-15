@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Image as ImageIcon, Menu, Upload, Users, Settings, UserRound, X } from 'lucide-react';
+import { Image as ImageIcon, Menu, Upload, Users, Settings, UserRound, ShieldCheck, X } from 'lucide-react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { makeSupabase } from './lib/supabase';
 
@@ -24,6 +24,7 @@ export default function Enhancements(){
  const openGroups=()=>{window.dispatchEvent(new KeyboardEvent('keydown',{key:'g',ctrlKey:true,shiftKey:true,bubbles:true}));setMenuOpen(false)};
  const openChatSettings=()=>clickByText(['chat settings','chat setting']);
  const openProfile=()=>{setMenuOpen(false);setProfileOpen(true)};
+ const openSecurity=()=>{window.dispatchEvent(new Event('encrypted-chat:open-security-center'));setMenuOpen(false)};
  if(!isAuthenticated)return null;
  return <>
   <div className="side-menu-hotspot" onMouseEnter={()=>setMenuOpen(true)} />
@@ -34,6 +35,7 @@ export default function Enhancements(){
     <button onClick={()=>clickByText(['new group','create group'])}><Users size={17}/><span>New group</span></button>
     <button onClick={openGroups}><Users size={17}/><span>Groups</span></button>
     <button onClick={openChatSettings}><Settings size={17}/><span>Chat settings</span></button>
+    <button onClick={openSecurity}><ShieldCheck size={17}/><span>Security Center</span></button>
     <button onClick={openProfile}><UserRound size={17}/><span>Profile settings</span></button>
    </div>
   </aside>
