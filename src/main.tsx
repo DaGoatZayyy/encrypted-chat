@@ -8,6 +8,7 @@ import GroupManagementOverlay from './GroupManagementOverlay';
 import Enhancements from './Enhancements';
 import './styles.css';
 import './enhancements.css';
+import './side-menu.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
