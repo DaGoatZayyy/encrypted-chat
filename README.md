@@ -1,95 +1,106 @@
 # Encrypted Chat
 
-A Vercel-ready React + TypeScript SPA using Auth0 for identity and Supabase for encrypted chat storage.
+A private messaging app focused on secure, encrypted communication.
 
-## Privacy architecture
+## Purpose
 
-- Auth0 handles account authentication.
-- A random 12-character User ID is generated client-side.
-- Message plaintext is encrypted in the browser with AES-256-GCM before it reaches Supabase.
-- Files are encrypted in the browser with AES-GCM before upload; Supabase Storage holds only encrypted blobs.
-- Chat keys are wrapped with browser-generated P-256 ECDH identity keys.
-- Supabase RLS restricts chat, message, attachment, and storage access to members.
-- Local app/chat passwords use PBKDF2-derived verification and never become server-side chat passwords.
-- No analytics or advertising SDK is included.
+Encrypted Chat is designed to give users a simple place to communicate privately through encrypted one-on-one and group conversations.
 
-This is privacy-oriented software, not a formal cryptographic audit or security guarantee. The current browser identity private key is stored in localStorage and should be migrated to stronger device-key storage before a high-security release.
+Messages and files are encrypted before being sent, while the app provides the features expected from a modern messaging platform.
 
 ## Features
 
-- Auth0 login/signup
-- One-to-one encrypted chats
-- Encrypted group chats
-- AES-GCM encrypted messages
-- Encrypted file attachments up to 25 MB
-- Hidden chats
-- Per-device chat password locks
-- Per-device app password lock
-- User ID reset without breaking existing memberships
-- Supabase RLS + private Storage bucket
-- Realtime subscriptions with 1-second polling fallback
-- Vercel SPA routing
+### Messaging
 
-## Local setup
+* Encrypted one-on-one chats
+* Encrypted group chats
+* Send and receive messages in real time
+* Reply to messages
+* Edit messages
+* Delete messages
+* Hide chats
+* Unread message counts
+* Last-message previews
+* Pinned chats
+* Muted chats
+* Recent chat sorting
 
-```bash
-npm install
-cp .env.example .env.local
-npm run dev
-```
+### Groups
 
-Set these values in `.env.local`:
+* Create group chats
+* Group owners and administrators
+* Add and remove members
+* Promote and demote administrators
+* Customize group names
+* Customize group icons
+* Group invite codes
+* Invite expiration and usage limits
+* Join requests
+* Admin approval for join requests
+* Pinned messages
+* Admin announcements
 
-- `VITE_AUTH0_DOMAIN`
-- `VITE_AUTH0_CLIENT_ID`
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
+### File Sharing
 
-Never put a Supabase service-role/secret key or Auth0 client secret in Vite environment variables.
+* Send files in conversations
+* Drag-and-drop file uploads
+* Image previews
+* Encrypted attachments
+* Download and decrypt attachments
+* 25 MB attachment limit
 
-## Auth0 setup
+### Real-Time Features
 
-Create a **Single Page Application** in Auth0. Add both local and production origins to Allowed Callback URLs, Allowed Logout URLs, and Allowed Web Origins. Use RS256.
+* Typing indicators
+* Online/offline status
+* Last seen
+* Read receipts
+* Real-time message updates
 
-Create and apply a Post Login Action:
+### Search
 
-```js
-exports.onExecutePostLogin = async (event, api) => {
-  api.idToken.setCustomClaim('role', 'authenticated');
-};
-```
+* Search encrypted messages locally
+* Quick search with `Ctrl + F`
+* Messages are searched after being decrypted on the user's device
 
-Enable the Auth0 tenant as a Supabase Third-Party Auth provider.
+### Profiles
 
-## Supabase
+* Custom display names
+* Unique User IDs
+* Profile pictures
+* Social links
+* Add people using their User ID
+* Reset User ID
 
-The repository contains the database migrations under `supabase/migrations/`. The current project has these migrations applied:
+### Customization
 
-- initial encrypted-chat schema
-- RLS hardening and optimization
-- secure chat creation RPC
-- Realtime membership support
-- encrypted attachments, private Storage bucket, and group-chat RPC
+* Dark mode
+* Light mode
+* System theme
+* Custom chat organization
+* Profile and chat settings
 
-Keep RLS enabled. Do not replace member policies with public access.
+### Security
 
-## Vercel deployment
+* Client-side message encryption
+* AES-256-GCM encryption
+* P-256 ECDH key exchange
+* Secure identity-key storage
+* Security Center
+* Encryption status
+* Key-storage status
+* Identity-key fingerprint
+* Local application password lock
+* Per-chat password locks
 
-1. Import `DaGoatZayyy/encrypted-chat` into Vercel.
-2. Framework: Vite.
-3. Build command: `npm run build`.
-4. Output directory: `dist`.
-5. Add the four `VITE_*` environment variables for the Production environment.
-6. Deploy.
-7. Copy the resulting Vercel HTTPS origin into Auth0 Allowed Callback URLs, Allowed Logout URLs, and Allowed Web Origins.
-8. Test login, two-user messaging, group creation, file upload/download, hidden chats, app lock, and chat lock in production.
+## Privacy
 
-`vercel.json` already contains the SPA rewrite needed for client-side routing.
+Encrypted Chat is designed so that message contents are encrypted before they leave the user's device.
 
-## Production limitations to review
+The application focuses on keeping conversations and shared files private while still providing a full-featured messaging experience.
 
-- Browser ECDH private keys currently live in localStorage; use non-exportable IndexedDB/WebCrypto storage plus a recovery design for a stronger release.
-- Local app/chat password locks protect the browser UI but are not a server-enforced password protocol.
-- Attachment cleanup/expiry is not automatic yet.
-- Password-protected chat metadata in the database is not currently used as a server-enforced chat password.
-- Supabase/Auth0 can still see account identity and routing metadata even though message/file bodies are encrypted.
+## Status
+
+**Feature-complete MVP**
+
+Encrypted Chat currently includes its core messaging, group, file-sharing, real-time, customization, and security features.
