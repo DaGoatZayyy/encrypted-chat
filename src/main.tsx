@@ -6,6 +6,7 @@ import RealtimeOverlay from './RealtimeOverlay';
 import ReadSearchOverlay from './ReadSearchOverlay';
 import GroupManagementOverlay from './GroupManagementOverlay';
 import Enhancements from './Enhancements';
+import SecurityCenter from './SecurityCenter';
 import './styles.css';
 import './enhancements.css';
 import './side-menu.css';
@@ -23,6 +24,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ReadSearchOverlay />
       <GroupManagementOverlay />
       <Enhancements />
+      <SecurityCenter />
     </Auth0Provider>
   </React.StrictMode>,
 );
