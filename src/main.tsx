@@ -5,6 +5,7 @@ import App from './App';
 import RealtimeOverlay from './RealtimeOverlay';
 import ReadSearchOverlay from './ReadSearchOverlay';
 import GroupManagementOverlay from './GroupManagementOverlay';
+import Enhancements from './Enhancements';
 import './styles.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -19,6 +20,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <RealtimeOverlay />
       <ReadSearchOverlay />
       <GroupManagementOverlay />
+      <Enhancements />
     </Auth0Provider>
   </React.StrictMode>,
 );
