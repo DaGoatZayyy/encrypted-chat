@@ -7,6 +7,7 @@ import ReadSearchOverlay from './ReadSearchOverlay';
 import GroupManagementOverlay from './GroupManagementOverlay';
 import Enhancements from './Enhancements';
 import './styles.css';
+import './enhancements.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
