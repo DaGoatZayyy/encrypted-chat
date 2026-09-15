@@ -16,6 +16,28 @@ export default function App(){
  const [tab,setTab]=useState<'chat'|'profile'>('chat'),[chats,setChats]=useState<Chat[]>([]),[selected,setSelected]=useState<Chat|null>(null),[messages,setMessages]=useState<Message[]>([]),[draft,setDraft]=useState(''),[showAdd,setShowAdd]=useState(false),[targetId,setTargetId]=useState(''),[displayName,setDisplayName]=useState(user?.name??''),[userCode,setUserCode]=useState(''),[hiddenMode,setHiddenMode]=useState(false),[appLocked,setAppLocked]=useState(false),[notice,setNotice]=useState('');
  const supabase=useMemo(()=>isAuthenticated?makeSupabase(async()=> (await getIdTokenClaims())?.__raw):null,[getIdTokenClaims,isAuthenticated]);
  useEffect(()=>{if(supabase&&user?.sub){void loadProfile();void loadChats();}},[supabase,user?.sub]);
+
+ // Keep the chat list synchronized across every signed-in device/session.
+ useEffect(()=>{
+  if(!supabase||!user?.sub)return;
+  const channel=supabase.channel(`chat-members-${user.sub}`)
+   .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_members',filter:`auth0_sub=eq.${user.sub}`},()=>{void loadChats()})
+   .subscribe();
+  return()=>{void supabase.removeChannel(channel);};
+ },[supabase,user?.sub]);
+
+ // Subscribe to the currently open conversation so incoming messages appear immediately.
+ useEffect(()=>{
+  if(!supabase||!user?.sub||!selected?.id)return;
+  const channel=supabase.channel(`messages-${selected.id}`)
+   .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`chat_id=eq.${selected.id}`},payload=>{
+    const incoming=payload.new as Message;
+    setMessages(current=>current.some(m=>m.id===incoming.id)?current:[...current,incoming]);
+   })
+   .subscribe();
+  return()=>{void supabase.removeChannel(channel);};
+ },[supabase,user?.sub,selected?.id]);
+
  async function loadProfile(){if(!supabase||!user?.sub)return;const {data}=await supabase.from('profiles').select('display_name,user_code').eq('auth0_sub',user.sub).maybeSingle();if(!data){const identity=await getOrCreateIdentity();const {data:created}=await supabase.from('profiles').insert({auth0_sub:user.sub,display_name:user.name??'User',user_code:randomUserId(),public_key:identity.publicJwk}).select('display_name,user_code').single();if(created){setDisplayName(created.display_name);setUserCode(created.user_code);}}else{setDisplayName(data.display_name);setUserCode(data.user_code);await getOrCreateIdentity();}}
  async function loadChats(){if(!supabase||!user?.sub)return;const {data}=await supabase.from('chat_members').select('chat_id,hidden,chats(id,password_protected,save_history,chat_members(auth0_sub,display_name,user_code))').eq('auth0_sub',user.sub);setChats((data??[]).flatMap((row:any)=>{const other=(row.chats?.chat_members??[]).find((m:any)=>m.auth0_sub!==user.sub);return other?[{id:row.chat_id,other_user_id:other.user_code,other_name:other.display_name,hidden:row.hidden,password_protected:row.chats.password_protected,save_history:row.chats.save_history}]:[]}));}
  async function addPerson(){
@@ -50,7 +72,15 @@ export default function App(){
   }catch(error){setNotice(error instanceof Error?error.message:'Could not create chat.');}
  }
  async function openChat(chat:Chat){if(!supabase||!user?.sub)return;const identity=await getOrCreateIdentity();const {data}=await supabase.from('chat_members').select('encrypted_key,key_sender_public').eq('chat_id',chat.id).eq('auth0_sub',user.sub).single();if(!data)return;try{const raw=await unwrapChatKey(data.encrypted_key,identity.privateKey,data.key_sender_public),key=await importKey(raw);setSelected({...chat,key});if(chat.save_history){const {data:rows}=await supabase.from('messages').select('id,sender_id,ciphertext,created_at').eq('chat_id',chat.id).order('created_at',{ascending:true});setMessages(rows??[]);}else setMessages([]);}catch{setNotice('This chat cannot be unlocked on this device.');}}
- async function sendMessage(){if(!draft.trim()||!selected?.key||!supabase||!user?.sub)return;const ciphertext=await encryptText(draft.trim(),selected.key);await supabase.from('messages').insert({chat_id:selected.id,sender_id:user.sub,ciphertext});setDraft('');if(selected.save_history){const {data}=await supabase.from('messages').select('id,sender_id,ciphertext,created_at').eq('chat_id',selected.id).order('created_at',{ascending:true});setMessages(data??[]);}}
+ async function sendMessage(){
+  const text=draft.trim();
+  if(!text||!selected?.key||!supabase||!user?.sub)return;
+  setDraft('');
+  const ciphertext=await encryptText(text,selected.key);
+  const {data,error}=await supabase.from('messages').insert({chat_id:selected.id,sender_id:user.sub,ciphertext}).select('id,sender_id,ciphertext,created_at').single();
+  if(error){setDraft(text);setNotice(error.message);return;}
+  if(data)setMessages(current=>current.some(m=>m.id===data.id)?current:[...current,data]);
+ }
  async function saveProfile(){if(supabase&&user?.sub){await supabase.from('profiles').update({display_name:displayName}).eq('auth0_sub',user.sub);setNotice('Profile saved.');}}
  if(isLoading)return <div className="center">Loading secure session…</div>;
  if(!isAuthenticated)return <div className="landing"><div className="brand"><Shield size={28}/> Encrypted Chat</div><h1>Private by design.</h1><p>Messages are encrypted in your browser before they reach Supabase.</p><button className="primary" onClick={()=>loginWithRedirect()}>Create account / Log in</button></div>;
