@@ -33,6 +33,7 @@ type MessageRow = {
 export default function ReadSearchOverlay() {
   const { isAuthenticated, user, getIdTokenClaims } = useAuth0();
   const [open, setOpen] = useState(false);
+  const [ready, setReady] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [busy, setBusy] = useState(false);
@@ -42,6 +43,13 @@ export default function ReadSearchOverlay() {
     () => isAuthenticated ? makeSupabase(async () => (await getIdTokenClaims())?.__raw) : null,
     [getIdTokenClaims, isAuthenticated],
   );
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const timer = window.setInterval(() => setReady(Boolean(document.querySelector('.app-shell'))), 250);
+    setReady(Boolean(document.querySelector('.app-shell')));
+    return () => window.clearInterval(timer);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -57,20 +65,24 @@ export default function ReadSearchOverlay() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!supabase || !user?.sub || !document.querySelector('.app-shell')) return;
+    if (!supabase || !user?.sub || !ready) return;
     let cancelled = false;
     const syncReadState = async () => {
       const nodes = Array.from(document.querySelectorAll<HTMLElement>('.message-wrap[id^="message-"]'));
-      const incoming = nodes.filter((node) => !node.classList.contains('mine') && !node.classList.contains('read-marked'));
       const ids = nodes.map((node) => node.id.slice('message-'.length)).filter(Boolean);
+      const incoming = nodes.filter((node) => !node.classList.contains('mine') && !node.classList.contains('read-marked'));
       for (const id of incoming.map((node) => node.id.slice('message-'.length)).filter(Boolean)) {
         await supabase.rpc('touch_message_read_receipt', { target_message_id: id });
-        const node = document.getElementById(`message-${id}`);
-        node?.classList.add('read-marked');
+        document.getElementById(`message-${id}`)?.classList.add('read-marked');
       }
       if (!ids.length) return;
-      const { data } = await supabase.from('message_receipts').select('message_id').in('message_id', ids).eq('user_id', user.sub);
-      if (!cancelled) setReadIds(new Set((data ?? []).map((row: { message_id: string }) => row.message_id)));
+      const { data } = await supabase
+        .from('message_receipts')
+        .select('message_id,user_id')
+        .in('message_id', ids);
+      if (!cancelled) {
+        setReadIds(new Set((data ?? []).filter((row: { message_id: string; user_id: string }) => row.user_id !== user.sub).map((row: { message_id: string }) => row.message_id)));
+      }
     };
     void syncReadState();
     const timer = window.setInterval(() => void syncReadState(), 1500);
@@ -78,7 +90,7 @@ export default function ReadSearchOverlay() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [supabase, user?.sub]);
+  }, [supabase, user?.sub, ready]);
 
   useEffect(() => {
     const nodes = document.querySelectorAll<HTMLElement>('.message-wrap.mine');
@@ -86,7 +98,7 @@ export default function ReadSearchOverlay() {
       const id = node.id.slice('message-'.length);
       node.classList.toggle('read-by-other', readIds.has(id));
     });
-  }, [readIds]);
+  }, [readIds, ready]);
 
   async function searchMessages() {
     const term = query.trim().toLocaleLowerCase();
@@ -128,18 +140,11 @@ export default function ReadSearchOverlay() {
           try {
             const text = await decryptText(message.ciphertext, key);
             if (text.toLocaleLowerCase().includes(term)) {
-              found.push({
-                messageId: message.id,
-                chatId: row.chat_id,
-                chatName: chat?.name || 'Chat',
-                senderId: message.sender_id,
-                createdAt: message.created_at,
-                text,
-              });
+              found.push({ messageId: message.id, chatId: row.chat_id, chatName: chat?.name || 'Chat', senderId: message.sender_id, createdAt: message.created_at, text });
               if (found.length >= 100) break;
             }
           } catch {
-            // A message encrypted with an unavailable/rotated key is simply not searchable on this device.
+            // Skip messages that cannot be decrypted by this device.
           }
         }
       }
@@ -164,7 +169,7 @@ export default function ReadSearchOverlay() {
     }
   }
 
-  if (!isAuthenticated || !document.querySelector('.app-shell')) return null;
+  if (!isAuthenticated || !ready) return null;
   return <>
     <button className="search-launcher" title="Search encrypted messages (Ctrl/Cmd+K)" onClick={() => { setOpen(true); setNotice(''); }}><Search size={17}/><span>Search</span><kbd>Ctrl K</kbd></button>
     {open && <div className="modal-backdrop search-backdrop"><div className="modal search-modal">
