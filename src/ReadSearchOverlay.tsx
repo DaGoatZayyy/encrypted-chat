@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { makeSupabase } from './lib/supabase';
 import { decryptText, importKey } from './lib/crypto';
@@ -54,9 +54,10 @@ export default function ReadSearchOverlay() {
   useEffect(() => {
     if (!isAuthenticated) return;
     const onKey = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
         event.preventDefault();
         setOpen(true);
+        setNotice('');
       }
       if (event.key === 'Escape') setOpen(false);
     };
@@ -171,7 +172,6 @@ export default function ReadSearchOverlay() {
 
   if (!isAuthenticated || !ready) return null;
   return <>
-    <button className="search-launcher" title="Search encrypted messages (Ctrl/Cmd+K)" onClick={() => { setOpen(true); setNotice(''); }}><Search size={17}/><span>Search</span><kbd>Ctrl K</kbd></button>
     {open && <div className="modal-backdrop search-backdrop"><div className="modal search-modal">
       <button className="modal-close" onClick={() => setOpen(false)}><X/></button>
       <h2>Search encrypted messages</h2>
