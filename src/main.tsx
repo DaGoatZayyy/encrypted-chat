@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Auth0Provider } from '@auth0/auth0-react';
 import App from './App';
+import RealtimeOverlay from './RealtimeOverlay';
 import './styles.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -13,6 +14,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       cacheLocation="memory"
     >
       <App />
+      <RealtimeOverlay />
     </Auth0Provider>
   </React.StrictMode>,
 );
