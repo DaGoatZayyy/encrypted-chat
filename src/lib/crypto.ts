@@ -33,12 +33,23 @@ export async function encryptText(text: string, key: CryptoKey) {
 export async function decryptText(payload: string, key: CryptoKey) {
   const [iv, ciphertext] = payload.split('.');
   if (!iv || !ciphertext) throw new Error('Invalid encrypted message');
-  const plaintext = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: base64ToBytes(iv) },
-    key,
-    base64ToBytes(ciphertext),
-  );
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: base64ToBytes(iv) }, key, base64ToBytes(ciphertext));
   return decoder.decode(plaintext);
+}
+
+export async function encryptBytes(bytes: ArrayBuffer, key: CryptoKey) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes));
+  const combined = new Uint8Array(12 + ciphertext.length);
+  combined.set(iv, 0);
+  combined.set(ciphertext, 12);
+  return combined;
+}
+
+export async function decryptBytes(payload: ArrayBuffer, key: CryptoKey) {
+  const bytes = new Uint8Array(payload);
+  if (bytes.length < 13) throw new Error('Invalid encrypted file');
+  return crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0, 12) }, key, bytes.slice(12));
 }
 
 export async function derivePasswordKey(password: string, salt: Uint8Array) {
@@ -50,6 +61,24 @@ export async function derivePasswordKey(password: string, salt: Uint8Array) {
     false,
     ['encrypt', 'decrypt'],
   );
+}
+
+export async function createPasswordVerifier(password: string) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await derivePasswordKey(password, salt);
+  const verifier = await encryptText('encrypted-chat-password-check', key);
+  return `${bytesToBase64(salt)}:${verifier}`;
+}
+
+export async function verifyPasswordVerifier(password: string, stored: string) {
+  try {
+    const [saltText, verifier] = stored.split(':');
+    if (!saltText || !verifier) return false;
+    const key = await derivePasswordKey(password, base64ToBytes(saltText));
+    return (await decryptText(verifier, key)) === 'encrypted-chat-password-check';
+  } catch {
+    return false;
+  }
 }
 
 export function randomBytes(length: number) {
